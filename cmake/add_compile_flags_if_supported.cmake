@@ -56,25 +56,6 @@ function(_check_cxx_compile_flag_supported flag supported)
   set(${supported} ${SUPPORTS_CXX_${flagname}_FLAG} PARENT_SCOPE)
 endfunction()
 
-function(_add_compile_flag lang flag)
-  separate_arguments(flag) # for flag pairs like -mllvm -...
-  foreach (_flag IN LISTS flag)
-    foreach (_lang IN LISTS lang)
-      add_compile_options($<$<COMPILE_LANGUAGE:${_lang}>:${_flag}>)
-    endforeach()
-  endforeach()
-endfunction()
-
-function(_add_target_compile_flag target scope lang flag)
-  separate_arguments(flag)
-  foreach (_flag IN LISTS flag)
-    foreach (_lang IN LISTS lang)
-      target_compile_options(${target} ${scope}
-        $<$<COMPILE_LANGUAGE:${_lang}>:${_flag}>)
-    endforeach()
-  endforeach()
-endfunction()
-
 # Check whether the compiler(s) for the given language(s) support a given flag.
 #
 # Usage:
@@ -112,46 +93,6 @@ function(check_compile_flag_supported lang flag supported)
   set(${supported} ${result} PARENT_SCOPE)
 endfunction()
 
-# Add the flags to the compilation of source files.
-#
-# Usage:
-#
-#	  add_compile_flags(
-#       <lang> <flag1> [<flag2>] ...)
-#
-# Arguments:
-#
-#  <lang> - Languages for which to add the flag.
-#           If multiple, use semicolon and wrap in quotes.
-#  <flagn> - Flags to be added.
-
-function(add_compile_flags lang)
-  foreach(flag ${ARGN})
-    _add_compile_flag("${lang}" ${flag} _)
-  endforeach()
-endfunction()
-
-# Add the flags to the compilation of source files for the given target.
-#
-# Usage:
-#
-#	  add_target_compile_flags(
-#       <target> <scope> <lang> <flag1> [<flag2>] ...)
-#
-# Arguments:
-# 
-#  <target> - Name of the target.
-#  <scope> - Scope of the flags: INTERFACE|PUBLIC|PRIVATE.
-#  <lang> - Languages for which to add the flag.
-#           If multiple, use semicolon and wrap in quotes.
-#  <flagn> - Flags to be added.
-
-function(add_target_compile_flags target scope lang)
-  foreach(flag ${ARGN})
-    _add_target_compile_flag(${target} ${scope} "${lang}" ${flag} _)
-  endforeach()
-endfunction()
-
 # Check whether the compiler(s) for the given language(s) support a given flag
 # and, if supported, add the flag to the compilation of source files.
 #
@@ -168,10 +109,16 @@ endfunction()
 #  <supportedvar> - Name of the boolean result variable indicating compiler support.
 
 function(add_compile_flag_if_supported lang flag supported)
-  check_compile_flag_supported("${lang}" ${flag} _supported)
-  if (_supported)
-    _add_compile_flag("${lang}" ${flag})
-  endif()
+  separate_arguments(flag) # for flag pairs like -mllvm -...
+  foreach (_flag in LISTS flag)
+    foreach (_lang IN LISTS lang)
+      check_compile_flag_supported(${_lang} ${_flag} _supported)
+      if (_supported)
+        add_compile_options(${_flag})
+      endif()
+    endforeach()
+  endforeach()
+  # TODO: This makes no sense as it could be different for C and CXX.
   set(${supported} ${_supported} PARENT_SCOPE)
 endfunction()
 
@@ -196,7 +143,7 @@ endfunction()
 function(add_target_compile_flag_if_supported target scope lang flag supported)
   check_compile_flag_supported("${lang}" ${flag} _supported)
   if (_supported)
-    _add_target_compile_flag(${target} ${scope} "${lang}" ${flag})
+    target_compile_options(${target} ${scope} ${flag})
   endif()
   set(${supported} ${_supported} PARENT_SCOPE)
 endfunction()
